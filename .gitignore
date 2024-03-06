@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+delegate-gmail-access.json
+.DS_Store
+*.pkl
+.env
+.vscode/

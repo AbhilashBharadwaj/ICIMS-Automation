@@ -1,0 +1,11 @@
+image: jerseystem/deploy-registry:python3.12-selenium-chromium
+stages:
+  - run_script
+run_script:
+  stage: run_script
+  script:
+    - pip install -r requirements.txt
+    - echo $GOOGLE_SERVICE_ACCOUNT > ./delegate-gmail-access.json
+    - python icims.py
+  timeout: 6h
+
