@@ -4,6 +4,7 @@ from decouple import config
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import Select
 
 from cookie_manager import CookieManager
 from scaper import Scraper
@@ -198,6 +199,100 @@ class ICIMSAutomation(Scraper):
                 f"Error: {e}",
             )
 
+    def dispostion_candidates(self, search_template, job_template_id):
+        """Dispostions candidates from the old job to the new job."""
+
+        def navigate_to_search_page():
+            """Navigates to the search page."""
+
+            print("Navigating to search page")
+            self.driver.get("https://jerseystem.icims.com/platform")
+            self.wait_for_clickable(By.ID, "navdropdown_0_-1_1").click()
+            self.wait_for_clickable(By.ID, "navdropdown_1_1_3").click()
+
+        def select_and_search_template():
+            """Selects a search template and initiates the search."""
+            self.switch_to_frame("main_body")
+            custom_dropdown = self.wait_for_element(
+                By.XPATH, "//a[@id='savedsearchpicker_icimsDropdown']"
+            )
+            self.driver.execute_script("arguments[0].click();", custom_dropdown)
+            custom_dropdown.click()
+
+            search_input = self.wait_for_element(
+                By.XPATH, "//input[@class='dropdown-search']"
+            )
+            search_input.clear()
+            search_input.send_keys(search_template)
+            time.sleep(2)
+            self.wait_for_clickable(
+                By.ID, "result-selectable_savedsearchpicker_0"
+            ).click()
+            time.sleep(2)
+
+            job_template_input = self.wait_for_element(
+                By.XPATH, "//input[@placeholder='— Blank —']"
+            )
+            job_template_input.clear()
+            job_template_input.send_keys(job_template_id)
+            self.wait_for_clickable(By.ID, "searchSubmitButton").click()
+            time.sleep(1)
+
+            # Select all after ensuring the search results have loaded
+            self.wait_for_clickable(
+                By.XPATH,
+                "//button[@class='btn btn-default dropdown-toggle' and @data-toggle='dropdown']",
+            ).click()
+            self.wait_for_clickable(
+                By.XPATH,
+                "//a[@class='dropdown-item viewAction' and @title='Select All']",
+            ).click()
+
+        def move_candidates():
+            """Moves candidates from old job to the new."""
+            self.wait_for_clickable(By.ID, "actionMoveStatus_anchor").click()
+            self.switch_to_new_window()
+            time.sleep(2)
+            select_element = Select(self.driver.find_element(By.ID, "status"))
+            select_element.select_by_visible_text(
+                "Dispositioned Candidates: Forward to another workflow"
+            )
+            self.wait_for_clickable(By.ID, "moveButton").click()
+            self.switch_to_frame("autoLaunchAction")
+            custom_dropdown = self.wait_for_element(
+                By.XPATH, "//a[@id='profileTypeFilter_icimsDropdown']"
+            )
+            self.driver.execute_script("arguments[0].click();", custom_dropdown)
+            custom_dropdown.click()
+            time.sleep(2)
+            self.wait_for_clickable(
+                By.ID, "result-selectable_profileTypeFilter_1"
+            ).click()
+            job_search_input = self.wait_for_element(By.ID, "profileSearchField")
+            job_search_input.clear()
+            job_search_input.send_keys(self.new_job_id)
+            job_search_input.send_keys(Keys.ENTER)
+            time.sleep(2)
+            self.wait_for_clickable(By.ID, "copyButton").click()
+            time.sleep(2)
+            self.wait_for_clickable(By.ID, "workflow-page-cancel-button").click()
+            self.switch_back_to_main_window()
+
+        self.logger(
+            "class ICIMSAutomation:dispostion_candidates",
+            "Dispostioning candidates",
+        )
+        print("Dispostioning candidates")
+        navigate_to_search_page()
+        select_and_search_template()
+        move_candidates()
+        print("Dispostioned candidates")
+
+        self.logger(
+            "class ICIMSAutomation:dispostion_candidates",
+            "Candidates dispostioned",
+        )
+
 
 def main():
 
@@ -206,15 +301,20 @@ def main():
     cookies_path = config("COOKIES_PATH")
     job_template_id = config("JOB_TEMPLATE_ID")
     job_search_templates = {
-        "first": config("FIRST_SEARCH_TEMPLATE"),
-        "second": config("SECOND_SEARCH_TEMPLATE"),
+        "unpost_template": config("UNPOST_JOBS_SEARCH_TEMPLATE"),
+        "move_to_closed_template": config("MOVE_TO_CLOSED_SEARCH_TEMPLATE"),
     }
+    recruiting_workflow_search_template = config("RECRUITING_WORKFLOW_SEARCH_TEMPLATE")
 
     automation = ICIMSAutomation(email, password, cookies_path)
 
     automation.login()
     automation.create_new_job(job_template_id)
+    automation.dispostion_candidates(
+        recruiting_workflow_search_template, job_template_id
+    )
     automation.remove_old_postings(job_search_templates, job_template_id)
+
     automation.close_driver()
 
 
